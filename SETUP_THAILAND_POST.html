@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thailand Post Integration Setup</title>
+    <style>
+        body { font-family: Tahoma, Arial, sans-serif; margin: 0; background: #f3f4f6; color: #111827; }
+        main { max-width: 920px; margin: 32px auto; background: #fff; padding: 28px; border: 1px solid #e5e7eb; border-radius: 8px; }
+        h1 { color: #b91c1c; margin-top: 0; }
+        h2 { border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 28px; }
+        code, pre { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
+        code { padding: 2px 6px; }
+        pre { padding: 14px; overflow-x: auto; }
+        .ok { background: #ecfdf5; border-left: 4px solid #10b981; padding: 12px; }
+        .warn { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Thailand Post Integration Setup</h1>
+    <p>ใช้ไฟล์นี้เป็น checklist สำหรับติดตั้งระบบซิงก์สถานะพัสดุ Thailand Post ใน PDH Telemed</p>
+
+    <h2>1. รันฐานข้อมูล</h2>
+    <pre>source database_setup_thailand_post.sql;</pre>
+    <p>ไฟล์ SQL จะเพิ่ม column ใน <code>telemed_tracking</code>, สร้าง log table และ view สำหรับรายงาน โดยไม่ลบข้อมูลเดิม</p>
+
+    <p>ถ้าต้องการสร้างฐานใหม่ทั้งก้อน ให้ใช้ไฟล์นี้แทน:</p>
+    <pre>source pdhtawan_schema_full.sql;</pre>
+    <div class="warn">ไฟล์ <code>pdhtawan_schema_full.sql</code> มีคำสั่ง DROP TABLE เหมาะกับฐานใหม่หรือเครื่องทดสอบเท่านั้น</div>
+
+    <h2>2. ตรวจสอบ API key</h2>
+    <p>ตั้งค่าใน <code>thailand_post_config.php</code> หรือกำหนด environment variable:</p>
+    <pre>THAILAND_POST_API_KEY=your_api_key</pre>
+    <div class="warn">ไม่ควรเผยแพร่ API key ใน repository สาธารณะ</div>
+
+    <h2>3. ตรวจสอบไฟล์ที่ต้องมี</h2>
+    <ul>
+        <li><code>thailand_post_config.php</code></li>
+        <li><code>api_thailand_post.php</code></li>
+        <li><code>thailand_post_modal.php</code></li>
+        <li><code>logs/</code></li>
+    </ul>
+
+    <h2>4. ตรวจ syntax PHP</h2>
+    <pre>php -l thailand_post_config.php
+php -l api_thailand_post.php
+php -l thailand_post_modal.php
+php -l tracking.php</pre>
+
+    <h2>5. ทดสอบการใช้งาน</h2>
+    <ol>
+        <li>เปิดหน้า <code>tracking.php</code></li>
+        <li>กดปุ่ม <strong>Thailand Post</strong> ในแถวผู้ป่วย</li>
+        <li>กรอกเลขพัสดุ เช่น <code>EV123456789TH</code></li>
+        <li>กด <strong>ตรวจสอบ</strong></li>
+        <li>กด <strong>บันทึกและซิงก์</strong></li>
+    </ol>
+
+    <div class="ok">เมื่อติดตั้งสำเร็จ ระบบจะแสดงเวลา TP sync ในคอลัมน์เลขพัสดุ และบันทึกผลลงฐานข้อมูล</div>
+</main>
+</body>
+</html>
