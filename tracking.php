@@ -121,6 +121,62 @@ try {
         }
     }
 
+    // Recover recent delivery-confirmed patients when the HIS Telemed code or status record is delayed.
+    $delivery_column = $app_pdo->query("SHOW COLUMNS FROM telemed_delivery LIKE 'pickup_self'");
+    $delivery_pickup_clause = $delivery_column->fetchColumn() ? "COALESCE(pickup_self, 0) = 0" : "1 = 1";
+    $stmt_recent_delivery = $app_pdo->prepare(
+        "SELECT hn
+         FROM telemed_delivery
+         WHERE $delivery_pickup_clause
+           AND TRIM(COALESCE(address, '')) <> ''
+           AND update_time >= DATE_SUB(CURDATE(), INTERVAL 45 DAY)"
+    );
+    $stmt_recent_delivery->execute();
+    $recent_delivery_hns = array_values(array_unique(array_column($stmt_recent_delivery->fetchAll(PDO::FETCH_ASSOC), 'hn')));
+    $existing_visit_keys = [];
+    foreach ($patients as $patient) {
+        $existing_visit_keys[$patient['hn'] . '|' . $patient['clean_regdate']] = true;
+    }
+
+    foreach (array_chunk($recent_delivery_hns, 400) as $hn_chunk) {
+        $hn_placeholders = implode(',', array_fill(0, count($hn_chunk), '?'));
+        $fallback_conditions = ["hn IN ($hn_placeholders)"];
+        $fallback_params = $hn_chunk;
+        if ($from_date !== '') {
+            $fallback_conditions[] = "DATE(regdate) >= ?";
+            $fallback_params[] = $from_date;
+        }
+        if ($to_date !== '') {
+            $fallback_conditions[] = "DATE(regdate) <= ?";
+            $fallback_params[] = $to_date;
+        }
+
+        $stmt_delivery_visits = $his_pdo->prepare(
+            "SELECT o.hn, o.fullname, DATE(o.regdate) AS clean_regdate, o.regdate AS raw_regdate, o.timereg
+             FROM opd.opd o
+             INNER JOIN (
+                 SELECT hn, MAX(regdate) AS latest_regdate
+                 FROM opd.opd
+                 WHERE " . implode(" AND ", $fallback_conditions) . "
+                 GROUP BY hn
+             ) latest ON latest.hn = o.hn AND latest.latest_regdate = o.regdate
+             ORDER BY o.regdate DESC, o.timereg DESC"
+        );
+        $stmt_delivery_visits->execute($fallback_params);
+        $added_hns = [];
+        foreach ($stmt_delivery_visits->fetchAll(PDO::FETCH_ASSOC) as $patient) {
+            if (isset($added_hns[$patient['hn']])) {
+                continue;
+            }
+            $visit_key = $patient['hn'] . '|' . $patient['clean_regdate'];
+            if (!isset($existing_visit_keys[$visit_key])) {
+                $patients[] = $patient;
+                $existing_visit_keys[$visit_key] = true;
+            }
+            $added_hns[$patient['hn']] = true;
+        }
+    }
+
     $note_count_map = [];
 $tracking_map = [];
 $delivery_map = [];
