@@ -1,12 +1,12 @@
-﻿<?php
+<?php
 include 'config.php';
 header('Content-Type: text/html; charset=UTF-8');
 
 // ==========================================
-// 1. เธ•เธฃเธงเธเธชเธญเธเธชเธดเธ—เธเธดเนเธเธฒเธฃเน€เธเนเธฒเนเธเนเธเธฒเธ
+// 1. ตรวจสอบสิทธิ์การเข้าใช้งาน
 // ==========================================
 $current_page = basename($_SERVER['PHP_SELF']); 
-// check_permission($current_page); // เธซเธฒเธเธ•เนเธญเธเธเธฒเธฃเน€เธเธดเธ”เธฃเธฐเธเธเธชเธดเธ—เธเธดเนเนเธซเนเน€เธเธดเธ”เธเธฃเธฃเธ—เธฑเธ”เธเธตเนเธเธฅเธฑเธ
+// check_permission($current_page); // หากต้องการเปิดระบบสิทธิ์ให้เปิดบรรทัดนี้กลับ
 $selected_month = trim((string)($_GET['month'] ?? ''));
 if ($selected_month !== '' && !preg_match('/^\d{4}-\d{2}$/', $selected_month)) {
     $selected_month = '';
@@ -42,10 +42,10 @@ if ($from_date !== '' && $to_date !== '' && $from_date > $to_date) {
 $is_date_filtered = $from_date !== '' || $to_date !== '';
 
 // ==========================================
-// 2. เธ”เธถเธเธเนเธญเธกเธนเธฅเธเธนเนเธเนเธงเธข Telemed เธฅเนเธฒเธชเธธเธ” 50 เธฃเธฒเธข เนเธฅเธฐ Join เธเธฑเธเธ•เธฒเธฃเธฒเธ Tracking
+// 2. ดึงข้อมูลผู้ป่วย Telemed ล่าสุด 50 ราย และ Join กับตาราง Tracking
 // ==========================================
 try {
-    // 2.1 เธ”เธถเธเธเนเธญเธกเธนเธฅเธเธนเนเธฃเธฑเธเธเธฃเธดเธเธฒเธฃเธเธฒเธ HIS DB (251) เนเธฅเธฐเธเธฃเธฑเธ DATE(o.regdate) เน€เธเธทเนเธญเธ•เธฑเธ”เน€เธงเธฅเธฒเธญเธญเธ
+    // 2.1 ดึงข้อมูลผู้รับบริการจาก HIS DB (251) และปรับ DATE(o.regdate) เพื่อตัดเวลาออก
     // Use the same Telemed visit flag as Dashboard so new home-delivery visits are not omitted.
     $his_conditions = [
         "o.comein IN ('10', 'IN10')",
@@ -143,7 +143,7 @@ foreach ($patients as $key => $pt) {
     $delivery_phone = trim((string)($delivery_data['phone'] ?? ''));
     $pickup_self = (int)($delivery_data['pickup_self'] ?? 0);
 
-    $patients[$key]['status'] = $track_data['followup_status'] ?? 'เธฃเธญเธเธฑเธ”เธชเนเธ';
+    $patients[$key]['status'] = $track_data['followup_status'] ?? 'รอจัดส่ง';
     $patients[$key]['track_no'] = $track_data['tracking_no'] ?? '-';
     $patients[$key]['send_date'] = $track_data['send_date'] ?? null;
     $patients[$key]['last_sync'] = $track_data['last_sync'] ?? null;
@@ -156,7 +156,7 @@ foreach ($patients as $key => $pt) {
     $patients[$key]['note_count'] = $note_count_map[$pt['hn']] ?? 0;
 
     if ($pickup_self === 1) {
-        $patients[$key]['status'] = 'เธกเธฒเธฃเธฑเธเธขเธฒเน€เธญเธ';
+        $patients[$key]['status'] = 'มารับยาเอง';
     }
 }
 $tracking_patients = array_values(array_filter($patients, static function (array $patient): bool {
@@ -210,13 +210,13 @@ foreach ($tracking_summary_patients as $pt) {
         $tracking_summary['synced']++;
     }
 
-    if (str_contains($status_text, 'เธฃเธญ') || str_contains($status_text, 'เน€เธเธเน€เธเธ')) {
+    if (str_contains($status_text, 'รอ') || str_contains($status_text, 'เธฃเธญ')) {
         $tracking_summary['pending']++;
-    } elseif (str_contains($status_text, 'เนเธ”เนเธฃเธฑเธ') || str_contains($status_text, 'เน€เธโ€เน€เธยเน€เธเธเน€เธเธ‘เน€เธย')) {
+    } elseif (str_contains($status_text, 'ได้รับ') || str_contains($status_text, 'เธ”เนเธฃเธฑเธ')) {
         $tracking_summary['received']++;
-    } elseif (str_contains($status_text, 'เธ•เธดเธ”เธ•เนเธญ') || str_contains($status_text, 'เนเธกเนเนเธ”เน') || str_contains($status_text, 'เน€เธโ€ขเน€เธเธ”เน€เธโ€เน€เธโ€ข') || str_contains($status_text, 'เน€เธยเน€เธเธเน€เธย')) {
+    } elseif (str_contains($status_text, 'ติดต่อ') || str_contains($status_text, 'ไม่ได้') || str_contains($status_text, 'เธ•เธดเธ”เธ•') || str_contains($status_text, 'เนเธกเน')) {
         $tracking_summary['problem']++;
-    } elseif (str_contains($status_text, 'เธชเนเธ') || str_contains($status_text, 'เน€เธเธเน€เธยเน€เธย')) {
+    } elseif (str_contains($status_text, 'ส่ง') || str_contains($status_text, 'เธชเนเธ')) {
         $tracking_summary['sent']++;
     } else {
         $tracking_summary['pending']++;
@@ -240,11 +240,11 @@ foreach ($tracking_summary_patients as $pt) {
     }
     $tracking_month_map[$month_key]['total_cases']++;
     $month_status = (string)($pt['status'] ?? '');
-    if (str_contains($month_status, 'เนเธ”เนเธฃเธฑเธ')) {
+    if (str_contains($month_status, 'ได้รับ')) {
         $tracking_month_map[$month_key]['received_cases']++;
-    } elseif (str_contains($month_status, 'เธ•เธดเธ”เธ•เนเธญ') || str_contains($month_status, 'เนเธกเนเนเธ”เน')) {
+    } elseif (str_contains($month_status, 'ติดต่อ') || str_contains($month_status, 'ไม่ได้')) {
         $tracking_month_map[$month_key]['problem_cases']++;
-    } elseif (str_contains($month_status, 'เธชเนเธ')) {
+    } elseif (str_contains($month_status, 'ส่ง')) {
         $tracking_month_map[$month_key]['sent_cases']++;
     }
 }
@@ -267,20 +267,20 @@ $delivery_completion_rate = $tracking_summary['total_cases'] > 0
     : 0;
 
 // ==========================================
-// 3. เธเธฑเธเธเนเธเธฑเธเธเธณเธซเธเธ” Badge เธชเธ–เธฒเธเธฐ
+// 3. ฟังก์ชันกำหนด Badge สถานะ
 // ==========================================
 function getStatusBadge($status) {
     switch ($status) {
-        case 'เธกเธฒเธฃเธฑเธเธขเธฒเน€เธญเธ':
-            return '<span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold border border-amber-200 shadow-sm">เธกเธฒเธฃเธฑเธเธขเธฒเน€เธญเธ</span>';
-        case 'เธชเนเธเนเธฅเนเธง':
-            return '<span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold border border-blue-200 shadow-sm">เธชเนเธเนเธฅเนเธง (เธฃเธฐเธซเธงเนเธฒเธเธ—เธฒเธ)</span>';
-        case 'เนเธ”เนเธฃเธฑเธเนเธฅเนเธง':
-            return '<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold border border-green-200 shadow-sm">เนเธ”เนเธฃเธฑเธเธขเธฒเนเธฅเนเธง</span>';
-        case 'เธ•เธดเธ”เธ•เนเธญเนเธกเนเนเธ”เน':
-            return '<span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border border-red-200 shadow-sm">เธ•เธดเธ”เธ•เนเธญเนเธกเนเนเธ”เน/เธ•เธตเธเธฅเธฑเธ</span>';
+        case 'มารับยาเอง':
+            return '<span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold border border-amber-200 shadow-sm">มารับยาเอง</span>';
+        case 'ส่งแล้ว':
+            return '<span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold border border-blue-200 shadow-sm">ส่งแล้ว (ระหว่างทาง)</span>';
+        case 'ได้รับแล้ว':
+            return '<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold border border-green-200 shadow-sm">ได้รับยาแล้ว</span>';
+        case 'ติดต่อไม่ได้':
+            return '<span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border border-red-200 shadow-sm">ติดต่อไม่ได้/ตีกลับ</span>';
         default:
-            return '<span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold border border-yellow-200 shadow-sm">เธฃเธญเธ”เธณเน€เธเธดเธเธเธฒเธฃ/เธฃเธญเธเธฑเธ”เธชเนเธ</span>';
+            return '<span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold border border-yellow-200 shadow-sm">รอดำเนินการ/รอจัดส่ง</span>';
     }
 }?>
 
@@ -290,7 +290,7 @@ function getStatusBadge($status) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="img/pdh.ico">
-    <title>Tracking - เธ•เธดเธ”เธ•เธฒเธกเธเธฒเธฃเธชเนเธเธขเธฒ Telemed</title>
+    <title>Tracking - ติดตามการส่งยา Telemed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -312,7 +312,7 @@ function getStatusBadge($status) {
                 </button>
                 <h1 class="font-bold text-gray-800 text-lg flex items-center">
                     <svg class="w-6 h-6 mr-2 text-blue-600 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                    เธฃเธฐเธเธเธ•เธดเธ”เธ•เธฒเธกเธเธฒเธฃเธเธฑเธ”เธชเนเธเธขเธฒ Telemed
+                    ระบบติดตามการจัดส่งยา Telemed
                 </h1>
                 <span class="ml-3 hidden rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 md:inline-flex">
                     <?php echo htmlspecialchars(APP_VERSION, ENT_QUOTES, 'UTF-8'); ?>
@@ -334,52 +334,52 @@ function getStatusBadge($status) {
                 <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-4">
                     <div>
                         <p class="text-xs font-bold text-blue-700 uppercase tracking-wider">Delivery Dashboard</p>
-                        <h2 class="text-2xl font-black text-gray-900 mt-1">เธชเธฃเธธเธเธฃเธฒเธขเธเธฒเธเธเธฒเธฃเธชเนเธเธขเธฒเนเธเธฃเธฉเธ“เธตเธขเน</h2>
-                        <p class="text-sm text-gray-500 mt-1">เนเธชเธ”เธเธเธนเนเธฃเธฑเธเธเธฃเธดเธเธฒเธฃเธ—เธตเนเธกเธตเน€เธฅเธ Tracking เนเธฅเธฐเธเธนเนเธฃเธฑเธเธขเธฒเธ—เธตเนเธเนเธฒเธเธ—เธตเนเธเธฃเนเธญเธกเธเธฑเธ”เธชเนเธ เธญเธฑเธเน€เธ”เธ•เธฅเนเธฒเธชเธธเธ” <?php echo date('d/m/Y H:i'); ?> เธ.</p>
+                        <h2 class="text-2xl font-black text-gray-900 mt-1">สรุปรายงานการส่งยาไปรษณีย์</h2>
+                        <p class="text-sm text-gray-500 mt-1">แสดงผู้รับบริการที่มีเลข Tracking และผู้รับยาที่บ้านที่พร้อมจัดส่ง อัปเดตล่าสุด <?php echo date('d/m/Y H:i'); ?> น.</p>
                     </div>
                     <a href="daily_summary.php" class="inline-flex items-center justify-center px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-bold shadow-sm transition">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-6h6v6m2 4H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"></path></svg>
-                        เธฃเธฒเธขเธเธฒเธเธฃเธฒเธขเธงเธฑเธ
+                        รายงานรายวัน
                     </a>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
                     <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-bold text-gray-500 uppercase">เธ—เธฑเนเธเธซเธกเธ”</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase">ทั้งหมด</p>
                             <span class="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6m-7 4h8m-9 4h10M5 3h14a1 1 0 011 1v16l-3-2-3 2-3-2-3 2-3-2V4a1 1 0 011-1z"></path></svg>
                             </span>
                         </div>
                         <div class="mt-3 text-3xl font-black text-gray-900"><?php echo number_format($tracking_summary['total_cases']); ?></div>
-                        <p class="text-xs text-gray-500 mt-1">เน€เธเธชเธชเนเธเธขเธฒเนเธเธฃเธฉเธ“เธตเธขเน</p>
+                        <p class="text-xs text-gray-500 mt-1">เคสส่งยาไปรษณีย์</p>
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-bold text-gray-500 uppercase">เธฃเธฒเธขเธเธฒเธฃเธขเธฒ</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase">รายการยา</p>
                             <span class="w-9 h-9 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a4 4 0 01-5.656 0L8.572 10.23a4 4 0 015.657-5.657l5.199 5.2a4 4 0 010 5.656zM14.5 6.5l-8 8"></path></svg>
                             </span>
                         </div>
                         <div class="mt-3 text-3xl font-black text-gray-900"><?php echo number_format($tracking_summary['total_drugs']); ?></div>
-                        <p class="text-xs text-gray-500 mt-1">เธฃเธงเธกเธ—เธธเธเธฃเธฒเธขเธเธฒเธฃเนเธเธซเธเนเธฒเธเธฑเธเธเธธเธเธฑเธ</p>
+                        <p class="text-xs text-gray-500 mt-1">รวมทุกรายการในหน้าปัจจุบัน</p>
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-bold text-gray-500 uppercase">เธกเธตเน€เธฅเธเธเธฑเธชเธ”เธธ</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase">มีเลขพัสดุ</p>
                             <span class="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M7 7V5a2 2 0 012-2h6a2 2 0 012 2v2m-9 4h8m-9 4h6"></path></svg>
                             </span>
                         </div>
                         <div class="mt-3 text-3xl font-black text-gray-900"><?php echo number_format($tracking_summary['with_tracking']); ?></div>
-                        <p class="text-xs text-gray-500 mt-1">เธขเธฑเธเนเธกเนเธกเธตเน€เธฅเธ <?php echo number_format($tracking_summary['without_tracking']); ?> เน€เธเธช</p>
+                        <p class="text-xs text-gray-500 mt-1">ยังไม่มีเลข <?php echo number_format($tracking_summary['without_tracking']); ?> เคส</p>
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-bold text-gray-500 uppercase">เธชเนเธเธชเธณเน€เธฃเนเธ</p>
+                            <p class="text-xs font-bold text-gray-500 uppercase">ส่งสำเร็จ</p>
                             <span class="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                             </span>
@@ -393,23 +393,23 @@ function getStatusBadge($status) {
 
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                        <p class="text-xs font-bold text-amber-700">เธฃเธญเธ”เธณเน€เธเธดเธเธเธฒเธฃ</p>
+                        <p class="text-xs font-bold text-amber-700">รอดำเนินการ</p>
                         <p class="text-2xl font-black text-amber-900 mt-1"><?php echo number_format($tracking_summary['pending']); ?></p>
                     </div>
                     <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-                        <p class="text-xs font-bold text-blue-700">เธชเนเธเนเธฅเนเธง</p>
+                        <p class="text-xs font-bold text-blue-700">ส่งแล้ว</p>
                         <p class="text-2xl font-black text-blue-900 mt-1"><?php echo number_format($tracking_summary['sent']); ?></p>
                     </div>
                     <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
-                        <p class="text-xs font-bold text-emerald-700">เนเธ”เนเธฃเธฑเธเนเธฅเนเธง</p>
+                        <p class="text-xs font-bold text-emerald-700">ได้รับแล้ว</p>
                         <p class="text-2xl font-black text-emerald-900 mt-1"><?php echo number_format($tracking_summary['received']); ?></p>
                     </div>
                     <div class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
-                        <p class="text-xs font-bold text-rose-700">เธ•เธดเธ”เธ•เธฒเธกเนเธกเนเนเธ”เน</p>
+                        <p class="text-xs font-bold text-rose-700">ติดตามไม่ได้</p>
                         <p class="text-2xl font-black text-rose-900 mt-1"><?php echo number_format($tracking_summary['problem']); ?></p>
                     </div>
                     <div class="bg-violet-50 border border-violet-200 rounded-lg px-4 py-3">
-                        <p class="text-xs font-bold text-violet-700">เธเธดเธเธเน Thailand Post</p>
+                        <p class="text-xs font-bold text-violet-700">ซิงก์ Thailand Post</p>
                         <p class="text-2xl font-black text-violet-900 mt-1"><?php echo number_format($tracking_summary['synced']); ?></p>
                     </div>
                 </div>
@@ -420,34 +420,34 @@ function getStatusBadge($status) {
                     <form method="GET" class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                         <div class="grid flex-1 gap-3 md:grid-cols-3">
                             <div>
-                                <label for="from_date" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">เธเธฒเธเธงเธฑเธเธ—เธตเน</label>
+                                <label for="from_date" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">จากวันที่</label>
                                 <input type="date" id="from_date" name="from_date" value="<?php echo htmlspecialchars($from_date, ENT_QUOTES, 'UTF-8'); ?>" class="w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200">
                             </div>
                             <div>
-                                <label for="to_date" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">เธ–เธถเธเธงเธฑเธเธ—เธตเน</label>
+                                <label for="to_date" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">ถึงวันที่</label>
                                 <input type="date" id="to_date" name="to_date" value="<?php echo htmlspecialchars($to_date, ENT_QUOTES, 'UTF-8'); ?>" class="w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200">
                             </div>
                             <div>
-                                <label for="month" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">เธซเธฃเธทเธญเน€เธฅเธทเธญเธเน€เธ”เธทเธญเธ</label>
+                                <label for="month" class="mb-1 block text-xs font-bold uppercase tracking-wider text-blue-800">หรือเลือกเดือน</label>
                                 <input type="month" id="month" name="month" value="<?php echo htmlspecialchars($selected_month, ENT_QUOTES, 'UTF-8'); ?>" class="w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200">
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <button type="submit" class="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700">
-                                เธเธฃเธญเธเธเนเธญเธกเธนเธฅ
+                                กรองข้อมูล
                             </button>
                             <?php if ($is_date_filtered || $selected_month !== ''): ?>
                                 <a href="tracking.php" class="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50">
-                                    เธฅเนเธฒเธเธ•เธฑเธงเธเธฃเธญเธเธ—เธฑเนเธเธซเธกเธ”
+                                    ล้างตัวกรองทั้งหมด
                                 </a>
                             <?php endif; ?>
                         </div>
                     </form>
                     <?php if ($is_date_filtered): ?>
                         <p class="mt-3 text-xs font-semibold text-blue-800">
-                            เธเนเธงเธเธงเธฑเธเธ—เธตเนเธ—เธตเนเน€เธฅเธทเธญเธ:
+                            ช่วงวันที่ที่เลือก:
                             <?php echo htmlspecialchars($from_date !== '' ? $from_date : '-', ENT_QUOTES, 'UTF-8'); ?>
-                            เธ–เธถเธ
+                            ถึง
                             <?php echo htmlspecialchars($to_date !== '' ? $to_date : '-', ENT_QUOTES, 'UTF-8'); ?>
                         </p>
                     <?php endif; ?>
@@ -456,11 +456,11 @@ function getStatusBadge($status) {
                 <div class="flex items-center justify-between gap-3 mb-3">
                     <div>
                         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Monthly Delivery Summary</p>
-                        <h3 class="text-lg font-black text-gray-900">เธชเธฃเธธเธเธเธฒเธฃเธชเนเธเธขเธฒเธฃเธฒเธขเน€เธ”เธทเธญเธ</h3>
+                        <h3 class="text-lg font-black text-gray-900">สรุปการส่งยารายเดือน</h3>
                     </div>
                     <?php if ($selected_month !== '' && !$is_date_filtered): ?>
                         <a href="tracking.php" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">
-                            เธฅเนเธฒเธเธ•เธฑเธงเธเธฃเธญเธเน€เธ”เธทเธญเธ
+                            ล้างตัวกรองเดือน
                         </a>
                     <?php endif; ?>
                 </div>
@@ -476,32 +476,32 @@ function getStatusBadge($status) {
                             <a href="tracking.php?month=<?php echo urlencode($month_key); ?>" class="group rounded-2xl border <?php echo $is_active_month ? 'border-blue-500 bg-blue-600 text-white shadow-lg shadow-blue-200' : 'border-gray-200 bg-white text-gray-900 shadow-sm hover:border-blue-300 hover:shadow-md'; ?> p-5 transition">
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
-                                        <p class="text-xs font-bold uppercase tracking-wider <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">เน€เธ”เธทเธญเธเธเธฃเธดเธเธฒเธฃ</p>
+                                        <p class="text-xs font-bold uppercase tracking-wider <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">เดือนบริการ</p>
                                         <h4 class="mt-1 text-2xl font-black"><?php echo htmlspecialchars($month_card_label, ENT_QUOTES, 'UTF-8'); ?></h4>
                                     </div>
-                                    <span class="rounded-full px-3 py-1 text-xs font-bold <?php echo $is_active_month ? 'bg-white/15 text-white' : 'bg-blue-50 text-blue-700'; ?>">เธ”เธนเธฃเธฒเธขเธเธฒเธ</span>
+                                    <span class="rounded-full px-3 py-1 text-xs font-bold <?php echo $is_active_month ? 'bg-white/15 text-white' : 'bg-blue-50 text-blue-700'; ?>">ดูรายงาน</span>
                                 </div>
                                 <div class="mt-4 grid grid-cols-3 gap-3 text-sm">
                                     <div>
-                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">เธ—เธฑเนเธเธซเธกเธ”</p>
+                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">ทั้งหมด</p>
                                         <p class="text-xl font-black"><?php echo number_format((int)($month_card['total_cases'] ?? 0)); ?></p>
                                     </div>
                                     <div>
-                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">เธชเนเธเนเธฅเนเธง</p>
+                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">ส่งแล้ว</p>
                                         <p class="text-xl font-black"><?php echo number_format((int)($month_card['sent_cases'] ?? 0)); ?></p>
                                     </div>
                                     <div>
-                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">เนเธ”เนเธฃเธฑเธเนเธฅเนเธง</p>
+                                        <p class="text-[11px] <?php echo $is_active_month ? 'text-blue-100' : 'text-gray-500'; ?>">ได้รับแล้ว</p>
                                         <p class="text-xl font-black"><?php echo number_format((int)($month_card['received_cases'] ?? 0)); ?></p>
                                     </div>
                                 </div>
-                                <p class="mt-3 text-xs <?php echo $is_active_month ? 'text-blue-100' : 'text-rose-600'; ?>">เธ•เธดเธ”เธ•เธฒเธกเนเธกเนเนเธ”เน <?php echo number_format((int)($month_card['problem_cases'] ?? 0)); ?> เธฃเธฒเธขเธเธฒเธฃ</p>
+                                <p class="mt-3 text-xs <?php echo $is_active_month ? 'text-blue-100' : 'text-rose-600'; ?>">ติดตามไม่ได้ <?php echo number_format((int)($month_card['problem_cases'] ?? 0)); ?> รายการ</p>
                             </a>
                         <?php endforeach; ?>
                     </div>
                 <?php else: ?>
                     <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-8 text-center text-sm font-semibold text-gray-400">
-                        เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธชเธฃเธธเธเธฃเธฒเธขเน€เธ”เธทเธญเธเธชเธณเธซเธฃเธฑเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธชเนเธเธขเธฒ
+                        ยังไม่มีข้อมูลสรุปรายเดือนสำหรับการติดตามส่งยา
                     </div>
                 <?php endif; ?>
             </section>
@@ -509,16 +509,16 @@ function getStatusBadge($status) {
             <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-200">
                 <div class="px-6 py-4 bg-gray-800 text-white font-bold flex flex-wrap gap-2 justify-between items-center text-sm lg:text-base">
                     <span>
-                        เธฃเธฒเธขเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธเธฒเธฃเธชเนเธเธขเธฒ Telemed
+                        รายการติดตามการส่งยา Telemed
                         <?php if ($is_date_filtered): ?>
-                            (เธเนเธงเธเธงเธฑเธเธ—เธตเน <?php echo htmlspecialchars($from_date !== '' ? $from_date : '-', ENT_QUOTES, 'UTF-8'); ?> เธ–เธถเธ <?php echo htmlspecialchars($to_date !== '' ? $to_date : '-', ENT_QUOTES, 'UTF-8'); ?>)
+                            (ช่วงวันที่ <?php echo htmlspecialchars($from_date !== '' ? $from_date : '-', ENT_QUOTES, 'UTF-8'); ?> ถึง <?php echo htmlspecialchars($to_date !== '' ? $to_date : '-', ENT_QUOTES, 'UTF-8'); ?>)
                         <?php else: ?>
-                            (เนเธชเธ”เธเธเนเธญเธกเธนเธฅเธ—เธฑเนเธเธซเธกเธ”)
+                            (แสดงข้อมูลทั้งหมด)
                         <?php endif; ?>
                     </span>
                     <a href="daily_summary.php" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 rounded-lg text-xs font-bold transition flex items-center shadow-md">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-                        เธเธดเธกเธเนเนเธเธชเธฃเธธเธเธชเนเธเธเธธเธฃเธเธฒเธฃ (เธฃเธฒเธขเธงเธฑเธ)
+                        พิมพ์ใบสรุปส่งธุรการ (รายวัน)
                     </a>
                 </div>
                 
@@ -526,14 +526,14 @@ function getStatusBadge($status) {
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">เธงเธฑเธเธ—เธตเนเธฃเธฑเธเธเธฃเธดเธเธฒเธฃ</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">HN / เธเธทเนเธญ-เธชเธเธธเธฅ</th>
-                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">เธฃเธฒเธขเธเธฒเธฃเธขเธฒ/เธเธฒเธฃเธฃเธฑเธเธขเธฒ</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">เธ—เธตเนเธญเธขเธนเนเธฃเธฑเธเธขเธฒ</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">เน€เธฅเธเธเธฑเธชเธ”เธธ</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">เธชเธ–เธฒเธเธฐเธเธฑเธเธเธธเธเธฑเธ</th>
-                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">เธซเธกเธฒเธขเน€เธซเธ•เธธ</th>
-                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">เธเธฒเธฃเธเธฑเธ”เธเธฒเธฃ</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">วันที่รับบริการ</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">HN / ชื่อ-สกุล</th>
+                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">รายการยา/การรับยา</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">ที่อยู่รับยา</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">เลขพัสดุ</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">สถานะปัจจุบัน</th>
+                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">หมายเหตุ</th>
+                                <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">การจัดการ</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-100">
@@ -542,7 +542,7 @@ function getStatusBadge($status) {
                                 <tr class="hover:bg-blue-50 transition-colors">
                                     <td class="px-6 py-4 whitespace-nowrap text-xs lg:text-sm text-gray-600 font-medium">
                                         <?php echo htmlspecialchars($pt['raw_regdate']); ?>
-                                        <br><span class="text-[10px] text-gray-400"><?php echo htmlspecialchars($pt['timereg']); ?> เธ.</span>
+                                        <br><span class="text-[10px] text-gray-400"><?php echo htmlspecialchars($pt['timereg']); ?> น.</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-xs lg:text-sm">
                                         <div class="font-bold text-blue-700"><?php echo htmlspecialchars($pt['hn']); ?></div>
@@ -551,25 +551,25 @@ function getStatusBadge($status) {
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-xs font-medium">
                                         <div class="flex flex-col items-center gap-1.5">
                                             <?php if ((int)$pt['drug_count'] > 0): ?>
-                                                <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-bold">เธกเธตเธขเธฒเธ—เธตเนเธ•เนเธญเธเธเธฑเธ”เธชเนเธ <?php echo number_format($pt['drug_count']); ?> เธฃเธฒเธขเธเธฒเธฃ</span>
+                                                <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg font-bold">มียาที่ต้องจัดส่ง <?php echo number_format($pt['drug_count']); ?> รายการ</span>
                                             <?php else: ?>
-                                                <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg font-bold">เนเธกเนเธเธเธฃเธฒเธขเธเธฒเธฃเธขเธฒ</span>
+                                                <span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-lg font-bold">ไม่พบรายการยา</span>
                                             <?php endif; ?>
                                             <?php if ((int)$pt['pickup_self'] === 1): ?>
-                                                <span class="px-2 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">เธกเธฒเธฃเธฑเธเธขเธฒเน€เธญเธ</span>
+                                                <span class="px-2 py-1 bg-amber-100 text-amber-800 rounded-lg font-bold">มารับยาเอง</span>
                                             <?php else: ?>
-                                                <span class="px-2 py-1 bg-green-100 text-green-800 rounded-lg font-bold">เธเธฑเธ”เธชเนเธเธขเธฒ</span>
+                                                <span class="px-2 py-1 bg-green-100 text-green-800 rounded-lg font-bold">จัดส่งยา</span>
                                             <?php endif; ?>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-xs lg:text-sm text-gray-700 min-w-[240px]">
                                         <?php if ((int)$pt['pickup_self'] === 1): ?>
-                                            <span class="font-bold text-amber-700">เธเธนเนเธเนเธงเธขเธเธฃเธฐเธชเธเธเนเธกเธฒเธฃเธฑเธเธขเธฒเน€เธญเธ</span>
+                                            <span class="font-bold text-amber-700">ผู้ป่วยประสงค์มารับยาเอง</span>
                                         <?php elseif (!empty(trim((string)$pt['delivery_address']))): ?>
                                             <div class="font-semibold leading-relaxed"><?php echo htmlspecialchars($pt['delivery_address']); ?></div>
-                                            <div class="text-gray-500 mt-1">เนเธ—เธฃ: <?php echo htmlspecialchars($pt['delivery_phone'] ?: '-'); ?></div>
+                                            <div class="text-gray-500 mt-1">โทร: <?php echo htmlspecialchars($pt['delivery_phone'] ?: '-'); ?></div>
                                         <?php else: ?>
-                                            <span class="font-bold text-red-600">เธขเธฑเธเนเธกเนเธกเธตเธ—เธตเนเธญเธขเธนเนเธเธฑเธ”เธชเนเธ</span>
+                                            <span class="font-bold text-red-600">ยังไม่มีที่อยู่จัดส่ง</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-gray-500">
@@ -584,34 +584,34 @@ function getStatusBadge($status) {
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                         <button onclick="openPatientNoteModal('<?php echo htmlspecialchars($pt['hn']); ?>', '<?php echo decodeThai($pt['fullname']); ?>', '<?php echo htmlspecialchars($pt['clean_regdate']); ?>')"
                                                 class="px-3 py-2 <?php echo ((int)($pt['note_count'] ?? 0) > 0) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-700 hover:bg-slate-800'; ?> shadow-md text-white rounded-lg text-xs font-bold transition transform hover:-translate-y-0.5">
-                                            เธซเธกเธฒเธขเน€เธซเธ•เธธ<?php echo ((int)($pt['note_count'] ?? 0) > 0) ? ' (' . number_format((int)$pt['note_count']) . ')' : ''; ?>
+                                            หมายเหตุ<?php echo ((int)($pt['note_count'] ?? 0) > 0) ? ' (' . number_format((int)$pt['note_count']) . ')' : ''; ?>
                                         </button>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                         <div class="flex justify-center items-center gap-2">
                                             <button onclick="openTrackModal('<?php echo htmlspecialchars($pt['hn']); ?>', '<?php echo decodeThai($pt['fullname']); ?>', '<?php echo htmlspecialchars($pt['clean_regdate']); ?>')" 
                                                     class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 shadow-md text-white rounded-lg text-xs font-bold transition transform hover:-translate-y-0.5"
-                                                    title="เธเธฃเธญเธเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฑเธชเธ”เธธเนเธฅเธฐเธชเธ–เธฒเธเธฐ">
-                                                เธญเธฑเธเน€เธ”เธ•เธชเธ–เธฒเธเธฐ
+                                                    title="กรอกรายละเอียดพัสดุและสถานะ">
+                                                อัปเดตสถานะ
                                             </button>
                                             
                                             <button onclick='openThailandPostModal(<?php echo json_encode((string)$pt['hn'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode(decodeThai($pt['fullname']), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode((string)$pt['clean_regdate'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, <?php echo json_encode((string)($pt['track_no'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'
                                                     class="px-3 py-2 bg-red-600 hover:bg-red-700 shadow-md text-white rounded-lg text-xs font-bold transition transform hover:-translate-y-0.5"
-                                                    title="เธฅเธเธ—เธฐเน€เธเธตเธขเธเนเธฅเธฐเธเธดเธเธเนเธชเธ–เธฒเธเธฐเธเธฑเธ Thailand Post">
+                                                    title="ลงทะเบียนและซิงก์สถานะกับ Thailand Post">
                                                 Thailand Post
                                             </button>
 
                                             <button onclick="quickMarkDelivered('<?php echo htmlspecialchars($pt['hn']); ?>', '<?php echo htmlspecialchars($pt['clean_regdate']); ?>')" 
                                                     class="px-3 py-2 bg-[#10b981] hover:bg-[#059669] shadow-md text-white rounded-lg text-xs font-bold transition transform hover:-translate-y-0.5"
-                                                    title="เธเธ”เน€เธเธทเนเธญเธขเธทเธเธขเธฑเธเธงเนเธฒเนเธ”เนเธฃเธฑเธเธขเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง">
-                                                <svg class="w-3 h-3 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>เธเธดเธ”เธเนเธญเธ
+                                                    title="กดเพื่อยืนยันว่าได้รับยาเรียบร้อยแล้ว">
+                                                <svg class="w-3 h-3 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>ปิดจ๊อบ
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="8" class="px-6 py-10 text-center text-gray-400 font-bold">เนเธกเนเธเธเธเธฃเธฐเธงเธฑเธ•เธดเธเธนเนเธเนเธงเธข Telemed เนเธเธฃเธฐเธเธ</td></tr>
+                                <tr><td colspan="8" class="px-6 py-10 text-center text-gray-400 font-bold">ไม่พบประวัติผู้ป่วย Telemed ในระบบ</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -619,18 +619,18 @@ function getStatusBadge($status) {
                 <?php if ($table_total_cases > 0): ?>
                     <div class="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
                         <p class="font-semibold text-gray-600">
-                            เนเธชเธ”เธ <?php echo number_format($table_offset + 1); ?> - <?php echo number_format(min($table_offset + $table_per_page, $table_total_cases)); ?> เธเธฒเธเธ—เธฑเนเธเธซเธกเธ” <?php echo number_format($table_total_cases); ?> เธฃเธฒเธขเธเธฒเธฃ
+                            แสดง <?php echo number_format($table_offset + 1); ?> - <?php echo number_format(min($table_offset + $table_per_page, $table_total_cases)); ?> จากทั้งหมด <?php echo number_format($table_total_cases); ?> รายการ
                         </p>
                         <?php if ($table_total_pages > 1): ?>
                             <div class="flex items-center gap-2">
                                 <?php if ($table_page > 1): ?>
                                     <?php $previous_query = http_build_query(array_merge($table_query_base, ['page' => $table_page - 1])); ?>
-                                    <a href="tracking.php?<?php echo htmlspecialchars($previous_query, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-lg border border-gray-300 bg-white px-3 py-2 font-bold text-gray-700 hover:bg-gray-100">เธเนเธญเธเธซเธเนเธฒ</a>
+                                    <a href="tracking.php?<?php echo htmlspecialchars($previous_query, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-lg border border-gray-300 bg-white px-3 py-2 font-bold text-gray-700 hover:bg-gray-100">ก่อนหน้า</a>
                                 <?php endif; ?>
-                                <span class="rounded-lg bg-blue-100 px-3 py-2 font-bold text-blue-800">เธซเธเนเธฒ <?php echo number_format($table_page); ?> / <?php echo number_format($table_total_pages); ?></span>
+                                <span class="rounded-lg bg-blue-100 px-3 py-2 font-bold text-blue-800">หน้า <?php echo number_format($table_page); ?> / <?php echo number_format($table_total_pages); ?></span>
                                 <?php if ($table_page < $table_total_pages): ?>
                                     <?php $next_query = http_build_query(array_merge($table_query_base, ['page' => $table_page + 1])); ?>
-                                    <a href="tracking.php?<?php echo htmlspecialchars($next_query, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-lg border border-gray-300 bg-white px-3 py-2 font-bold text-gray-700 hover:bg-gray-100">เธ–เธฑเธ”เนเธ</a>
+                                    <a href="tracking.php?<?php echo htmlspecialchars($next_query, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-lg border border-gray-300 bg-white px-3 py-2 font-bold text-gray-700 hover:bg-gray-100">ถัดไป</a>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
@@ -644,7 +644,7 @@ function getStatusBadge($status) {
         <div class="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-2xl border border-gray-200 mx-auto">
             
             <div class="bg-gradient-to-r from-indigo-700 to-purple-800 px-6 py-4 flex justify-between items-center text-white">
-                <h2 class="text-lg lg:text-xl font-bold flex items-center">Checklist เธ•เธดเธ”เธ•เธฒเธกเธชเธ–เธฒเธเธฐเธเธฑเธ”เธชเนเธเธขเธฒ</h2>
+                <h2 class="text-lg lg:text-xl font-bold flex items-center">Checklist ติดตามสถานะจัดส่งยา</h2>
                 <button onclick="closeTrackModal()" class="text-white hover:text-red-300 text-3xl font-bold transition">&times;</button>
             </div>
             
@@ -653,55 +653,55 @@ function getStatusBadge($status) {
                 <input type="hidden" id="trk_regdate" name="regdate">
 
                 <div class="mb-6 pb-4 border-b border-gray-200">
-                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">เธเนเธญเธกเธนเธฅเธเธนเนเธเนเธงเธข</p>
-                    <p id="trk_pt_name" class="text-lg lg:text-xl font-black text-indigo-900 mt-1">HN: XXXXX | เธเธทเนเธญ-เธชเธเธธเธฅ</p>
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">ข้อมูลผู้ป่วย</p>
+                    <p id="trk_pt_name" class="text-lg lg:text-xl font-black text-indigo-900 mt-1">HN: XXXXX | ชื่อ-สกุล</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                        <h3 class="font-bold text-gray-800 flex items-center border-b pb-2 text-sm lg:text-base"><span class="mr-2 text-xl">๐“ฆ</span> เธเนเธญเธกเธนเธฅเนเธเธฃเธฉเธ“เธตเธขเน</h3>
+                        <h3 class="font-bold text-gray-800 flex items-center border-b pb-2 text-sm lg:text-base"><span class="mr-2 text-xl">📦</span> ข้อมูลไปรษณีย์</h3>
                         <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">เน€เธฅเธเธเธฑเธชเธ”เธธ (Tracking No):</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">เลขพัสดุ (Tracking No):</label>
                             <input type="text" id="trk_no" name="tracking_no" maxlength="13" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono font-bold text-sm lg:text-base uppercase outline-none" placeholder="EX123456789TH">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">เธงเธฑเธเธ—เธตเนเธชเนเธเนเธเธฃเธฉเธ“เธตเธขเน:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">วันที่ส่งไปรษณีย์:</label>
                             <input type="date" id="trk_send" name="send_date" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                         </div>
                     </div>
 
                     <div class="bg-white p-4 rounded-xl border border-blue-200 shadow-sm space-y-4">
-                        <h3 class="font-bold text-blue-800 flex items-center border-b pb-2 border-blue-100 text-sm lg:text-base"><span class="mr-2 text-xl">โ</span> เธเธฒเธฃเนเธ—เธฃเธ•เธดเธ”เธ•เธฒเธกเธเธเนเธเน</h3>
+                        <h3 class="font-bold text-blue-800 flex items-center border-b pb-2 border-blue-100 text-sm lg:text-base"><span class="mr-2 text-xl">☎</span> การโทรติดตามคนไข้</h3>
                         <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">เธชเธ–เธฒเธเธฐเธเธฑเธเธเธธเธเธฑเธ <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">สถานะปัจจุบัน <span class="text-red-500">*</span></label>
                             <select id="trk_status" name="followup_status" class="w-full p-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-blue-900 bg-blue-50 outline-none text-sm">
-                                <option value="เธฃเธญเธเธฑเธ”เธชเนเธ">เธฃเธญเธเธฑเธ”เธชเนเธ (เธฃเธญเธ”เธณเน€เธเธดเธเธเธฒเธฃ)</option>
-                                <option value="เธชเนเธเนเธฅเนเธง">เธชเนเธเธเธฑเธชเธ”เธธเนเธฅเนเธง (เธญเธขเธนเนเธฃเธฐเธซเธงเนเธฒเธเธเธฑเธ”เธชเนเธ)</option>
-                                <option value="เนเธ”เนเธฃเธฑเธเนเธฅเนเธง">เธเธเนเธเนเนเธ”เนเธฃเธฑเธเธขเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง</option>
-                                <option value="เธ•เธดเธ”เธ•เนเธญเนเธกเนเนเธ”เน">เธ•เธดเธ”เธ•เนเธญเนเธกเนเนเธ”เน / เธเธฑเธชเธ”เธธเธ•เธตเธเธฅเธฑเธ</option>
+                                <option value="รอจัดส่ง">รอจัดส่ง (รอดำเนินการ)</option>
+                                <option value="ส่งแล้ว">ส่งพัสดุแล้ว (อยู่ระหว่างจัดส่ง)</option>
+                                <option value="ได้รับแล้ว">คนไข้ได้รับยาเรียบร้อยแล้ว</option>
+                                <option value="ติดต่อไม่ได้">ติดต่อไม่ได้ / พัสดุตีกลับ</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">เธงเธฑเธเธ—เธตเนเธเธเนเธเนเนเธ”เนเธฃเธฑเธเธขเธฒ:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">วันที่คนไข้ได้รับยา:</label>
                             <input type="date" id="trk_receive" name="receive_date" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-600 mb-1">เธเธนเนเนเธ—เธฃเธ•เธดเธ”เธ•เธฒเธก:</label>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">ผู้โทรติดตาม:</label>
                             <input type="text" id="trk_follower" name="follower_name" value="<?php echo htmlspecialchars($_SESSION['fullname'] ?? ''); ?>" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-100 outline-none text-sm">
                         </div>
                     </div>
                 </div>
 
                 <div class="mb-6">
-                    <label class="block text-xs font-bold text-gray-600 mb-1">เธเธฑเธเธ—เธถเธเธเนเธญเธเธงเธฒเธก / เธซเธกเธฒเธขเน€เธซเธ•เธธ:</label>
-                    <textarea id="trk_note" name="note" rows="3" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="เน€เธเนเธ เนเธ—เธฃเนเธเนเธกเนเธกเธตเธเธเธฃเธฑเธเธชเธฒเธข เธเธฐเนเธ—เธฃเนเธซเธกเนเธเธฃเธธเนเธเธเธตเน..."></textarea>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">บันทึกข้อความ / หมายเหตุ:</label>
+                    <textarea id="trk_note" name="note" rows="3" class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="เช่น โทรไปไม่มีคนรับสาย จะโทรใหม่พรุ่งนี้..."></textarea>
                 </div>
 
                 <div class="flex gap-4">
-                    <button type="button" onclick="closeTrackModal()" class="w-1/3 bg-gray-300 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-400 transition">เธขเธเน€เธฅเธดเธ</button>
+                    <button type="button" onclick="closeTrackModal()" class="w-1/3 bg-gray-300 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-400 transition">ยกเลิก</button>
                     <button type="submit" class="w-2/3 bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition text-base lg:text-lg flex justify-center items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        เธเธฑเธเธ—เธถเธเธชเธ–เธฒเธเธฐ
+                        บันทึกสถานะ
                     </button>
                 </div>
             </form>
@@ -715,12 +715,12 @@ function getStatusBadge($status) {
     async function openTrackModal(hn, fullname, regdate) {
         document.getElementById('trk_hn').value = hn;
         document.getElementById('trk_regdate').value = regdate;
-        document.getElementById('trk_pt_name').innerText = `HN: ${hn} | ${fullname} (เธฃเธฑเธเธเธฃเธดเธเธฒเธฃ: ${regdate})`;
+        document.getElementById('trk_pt_name').innerText = `HN: ${hn} | ${fullname} (รับบริการ: ${regdate})`;
         
         document.getElementById('trk_no').value = '';
         document.getElementById('trk_send').value = '';
         document.getElementById('trk_receive').value = '';
-        document.getElementById('trk_status').value = 'เธฃเธญเธเธฑเธ”เธชเนเธ';
+        document.getElementById('trk_status').value = 'รอจัดส่ง';
         document.getElementById('trk_note').value = '';
 
         document.getElementById('trackModal').classList.remove('hidden');
@@ -774,8 +774,8 @@ function getStatusBadge($status) {
 
         if (normalizedTrackingNo !== '' && !isValidTrackingNo(normalizedTrackingNo)) {
             Swal.fire(
-                'เธเนเธญเธกเธนเธฅเนเธกเนเธเธฃเธ',
-                'เน€เธฅเธเธเธฑเธชเธ”เธธเนเธกเนเธเธฃเธเธซเธฃเธทเธญเธฃเธนเธเนเธเธเนเธกเนเธ–เธนเธเธ•เนเธญเธ เธเธฃเธธเธ“เธฒเธเธฃเธญเธเนเธซเนเธเธฃเธ เน€เธเนเธ EX123456789TH',
+                'ข้อมูลไม่ครบ',
+                'เลขพัสดุไม่ครบหรือรูปแบบไม่ถูกต้อง กรุณากรอกให้ครบ เช่น EX123456789TH',
                 'warning'
             );
             trackingInput.focus();
@@ -789,42 +789,42 @@ function getStatusBadge($status) {
             const data = await res.json();
             
             if(data.status === 'success') {
-                Swal.fire({ icon: 'success', title: 'เธญเธฑเธเน€เธ”เธ•เธชเธ–เธฒเธเธฐเธชเธณเน€เธฃเนเธ', timer: 1500, showConfirmButton: false }).then(() => {
+                Swal.fire({ icon: 'success', title: 'อัปเดตสถานะสำเร็จ', timer: 1500, showConfirmButton: false }).then(() => {
                     window.location.reload(); 
                 });
-            } else { Swal.fire('เธเธดเธ”เธเธฅเธฒเธ”', data.message, 'error'); }
-        } catch (e) { Swal.fire('เธเธดเธ”เธเธฅเธฒเธ”', 'เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญเธฃเธฐเธเธเนเธ”เน', 'error'); }
+            } else { Swal.fire('ผิดพลาด', data.message, 'error'); }
+        } catch (e) { Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อระบบได้', 'error'); }
     });
     }
 
     function quickMarkDelivered(hn, regdate) {
         Swal.fire({
-            title: 'เธเธดเธ”เธเนเธญเธเธชเนเธเธขเธฒเธ”เนเธงเธ?',
-            html: `เธ•เนเธญเธเธเธฒเธฃเธขเธทเธเธขเธฑเธเธงเนเธฒ HN: <b>${hn}</b><br>เนเธ”เนเธฃเธฑเธเธขเธฒเน€เธฃเธตเธขเธเธฃเนเธญเธขเนเธฅเนเธง เนเธเนเธซเธฃเธทเธญเนเธกเน?<br><span class="text-sm text-gray-500">(เน€เธซเธกเธฒเธฐเธชเธณเธซเธฃเธฑเธเน€เธเธฅเธตเธขเธฃเนเธเนเธญเธกเธนเธฅเนเธเธญเธ”เธตเธ•)</span>`,
+            title: 'ปิดจ๊อบส่งยาด่วน?',
+            html: `ต้องการยืนยันว่า HN: <b>${hn}</b><br>ได้รับยาเรียบร้อยแล้ว ใช่หรือไม่?<br><span class="text-sm text-gray-500">(เหมาะสำหรับเคลียร์ข้อมูลในอดีต)</span>`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#10b981',
             cancelButtonColor: '#9ca3af',
-            confirmButtonText: 'เนเธเน, เนเธ”เนเธฃเธฑเธเธขเธฒเนเธฅเนเธง',
-            cancelButtonText: 'เธขเธเน€เธฅเธดเธ'
+            confirmButtonText: 'ใช่, ได้รับยาแล้ว',
+            cancelButtonText: 'ยกเลิก'
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
                     const fd = new FormData(); 
                     fd.append('hn', hn); 
                     fd.append('regdate', regdate);
-                    fd.append('followup_status', 'เนเธ”เนเธฃเธฑเธเนเธฅเนเธง');
-                    fd.append('note', 'เธเธดเธ”เธเนเธญเธเธ”เนเธงเธ (เน€เธเธฅเธตเธขเธฃเนเธเนเธญเธกเธนเธฅเนเธเธญเธ”เธตเธ•)');
+                    fd.append('followup_status', 'ได้รับแล้ว');
+                    fd.append('note', 'ปิดจ๊อบด่วน (เคลียร์ข้อมูลในอดีต)');
                     
                     const res = await fetch('api_tracking.php?action=save_tracking', { method: 'POST', body: fd });
                     const data = await res.json();
                     
                     if(data.status === 'success') {
-                        Swal.fire({ icon: 'success', title: 'เธเธดเธ”เธเนเธญเธเธชเธณเน€เธฃเนเธ', text: 'เธฃเธฐเธเธเธญเธฑเธเน€เธ”เธ•เธชเธ–เธฒเธเธฐเน€เธเนเธ "เนเธ”เนเธฃเธฑเธเธขเธฒเนเธฅเนเธง"', timer: 1500, showConfirmButton: false }).then(() => {
+                        Swal.fire({ icon: 'success', title: 'ปิดจ๊อบสำเร็จ', text: 'ระบบอัปเดตสถานะเป็น "ได้รับยาแล้ว"', timer: 1500, showConfirmButton: false }).then(() => {
                             window.location.reload(); 
                         });
-                    } else { Swal.fire('เธเธดเธ”เธเธฅเธฒเธ”', data.message, 'error'); }
-                } catch (e) { Swal.fire('เธเธดเธ”เธเธฅเธฒเธ”', 'เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญเธฃเธฐเธเธเนเธ”เน', 'error'); }
+                    } else { Swal.fire('ผิดพลาด', data.message, 'error'); }
+                } catch (e) { Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อระบบได้', 'error'); }
             }
         });
     }
