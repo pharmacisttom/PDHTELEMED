@@ -70,6 +70,57 @@ try {
     $stmt_his = $his_pdo->prepare($sql_his);
     $stmt_his->execute($his_params);
     $patients = $stmt_his->fetchAll(PDO::FETCH_ASSOC);
+
+    // Include visits explicitly marked for home delivery even if the HIS Telemed flag was not populated.
+    $status_table = $app_pdo->query("SHOW TABLES LIKE 'telemed_patient_status'");
+    if ($status_table->fetchColumn()) {
+        $status_conditions = ["status_type = 'home_delivery'"];
+        $status_params = [];
+        if ($from_date !== '') {
+            $status_conditions[] = "DATE(regdate) >= ?";
+            $status_params[] = $from_date;
+        }
+        if ($to_date !== '') {
+            $status_conditions[] = "DATE(regdate) <= ?";
+            $status_params[] = $to_date;
+        }
+
+        $stmt_home_status = $app_pdo->prepare(
+            "SELECT hn, DATE(regdate) AS clean_regdate
+             FROM telemed_patient_status
+             WHERE " . implode(" AND ", $status_conditions)
+        );
+        $stmt_home_status->execute($status_params);
+        $home_status_visits = $stmt_home_status->fetchAll(PDO::FETCH_ASSOC);
+        $existing_visit_keys = [];
+        foreach ($patients as $patient) {
+            $existing_visit_keys[$patient['hn'] . '|' . $patient['clean_regdate']] = true;
+        }
+
+        foreach (array_chunk($home_status_visits, 400) as $visit_chunk) {
+            $pair_placeholders = implode(',', array_fill(0, count($visit_chunk), '(?, ?)'));
+            $pair_params = [];
+            foreach ($visit_chunk as $visit) {
+                $pair_params[] = $visit['hn'];
+                $pair_params[] = $visit['clean_regdate'];
+            }
+
+            $stmt_home_visits = $his_pdo->prepare(
+                "SELECT o.hn, o.fullname, DATE(o.regdate) AS clean_regdate, o.regdate AS raw_regdate, o.timereg
+                 FROM opd.opd o
+                 WHERE (o.hn, DATE(o.regdate)) IN ($pair_placeholders)"
+            );
+            $stmt_home_visits->execute($pair_params);
+            foreach ($stmt_home_visits->fetchAll(PDO::FETCH_ASSOC) as $patient) {
+                $visit_key = $patient['hn'] . '|' . $patient['clean_regdate'];
+                if (!isset($existing_visit_keys[$visit_key])) {
+                    $patients[] = $patient;
+                    $existing_visit_keys[$visit_key] = true;
+                }
+            }
+        }
+    }
+
     $note_count_map = [];
 $tracking_map = [];
 $delivery_map = [];
